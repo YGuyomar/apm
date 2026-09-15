@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The shared gh-aw APM pack job now declares `contents: read` (previously `permissions: {}`), the minimum the explicit built-in-token path needs. No write scope is added, and the token is not forwarded to restore or agent jobs. (#2706)
 - Dependency policy `allow`, `deny`, and exact `require` matching now follows canonical owner/repository casing, fixing mixed-case blocks and deny fail-open behavior while retaining lazy shared required-package lookup. APM 0.30.0 and earlier match patterns byte-exactly against the lowercased identity; lowercase patterns keep matching in every release, so drop workaround duplicates only after every runner uses a release carrying this fix. (#2706)
 
+### Performance
+
+- `batch_fetch_server_info` now looks up independent MCP registry documents concurrently with a bounded `ThreadPoolExecutor` (max 4 workers), matching the existing install-check fan-out. (closes #2981)
+
 ### Fixed
 
 - GitLab `path:` dependencies now preserve the selected SSH transport, username, and port instead of silently using HTTPS; REST fallback requires an executed same-origin HTTPS attempt admitted by the transport policy. (#2938)

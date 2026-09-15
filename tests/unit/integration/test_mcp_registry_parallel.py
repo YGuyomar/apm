@@ -1,7 +1,7 @@
 """WS2b (#1116): parallel MCP registry batch lookup tests.
 
-Verifies that ``validate_servers_exist`` and ``check_servers_needing_installation``
-run in parallel and complete within bounded wall time.
+Verifies that ``validate_servers_exist``, ``check_servers_needing_installation``,
+and ``batch_fetch_server_info`` run in parallel and complete within bounded wall time.
 
 No real network calls -- all registry HTTP is mocked.
 """
@@ -116,3 +116,56 @@ class TestParallelRegistryLookups:
         valid, invalid = ops.validate_servers_exist(["only-one"], max_workers=4)
         assert valid == ["only-one"]
         assert invalid == []
+
+    def test_batch_fetch_server_info_parallel_wall_time(self) -> None:
+        """3 servers each sleeping 500ms: wall time < 1.0s (vs 1.5s serial)."""
+        ops = MCPServerOperations.__new__(MCPServerOperations)
+        ops.registry_client = MagicMock()
+
+        call_count = {"n": 0}
+
+        def slow_find(ref: str):
+            import time as _t
+
+            call_count["n"] += 1
+            _t.sleep(0.5)
+            return {"id": f"uuid-{ref}", "name": ref}
+
+        ops.registry_client.find_server_by_reference = slow_find
+
+        servers = ["server-a", "server-b", "server-c"]
+
+        start = time.monotonic()
+        result = ops.batch_fetch_server_info(servers, max_workers=4)
+        elapsed = time.monotonic() - start
+
+        assert call_count["n"] == 3
+        assert list(result.keys()) == servers
+        assert all(result[ref]["id"] == f"uuid-{ref}" for ref in servers)
+        assert elapsed < 1.0, f"Wall time {elapsed:.3f}s >= 1.0s (not parallel)"
+
+    def test_batch_fetch_preserves_submission_order_and_exceptions(self) -> None:
+        """Results keep input order; per-ref exceptions map to None."""
+        ops = MCPServerOperations.__new__(MCPServerOperations)
+        ops.registry_client = MagicMock()
+
+        import random
+
+        def jittered_find(ref: str):
+            import time as _t
+
+            _t.sleep(random.uniform(0.01, 0.05))  # noqa: S311
+            if ref == "bad":
+                raise RuntimeError("lookup failed")
+            return {"id": f"uuid-{ref}", "name": ref}
+
+        ops.registry_client.find_server_by_reference = jittered_find
+
+        servers = ["alpha", "bad", "gamma", "delta"]
+        result = ops.batch_fetch_server_info(servers, max_workers=4)
+
+        assert list(result.keys()) == servers
+        assert result["alpha"]["id"] == "uuid-alpha"
+        assert result["bad"] is None
+        assert result["gamma"]["id"] == "uuid-gamma"
+        assert result["delta"]["id"] == "uuid-delta"
