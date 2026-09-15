@@ -9,7 +9,7 @@ No real network calls -- all registry HTTP is mocked.
 from __future__ import annotations
 
 import time
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from apm_cli.registry.operations import MCPServerOperations
 
@@ -169,3 +169,21 @@ class TestParallelRegistryLookups:
         assert result["bad"] is None
         assert result["gamma"]["id"] == "uuid-gamma"
         assert result["delta"]["id"] == "uuid-delta"
+
+    def test_batch_fetch_clamps_max_workers_to_four(self) -> None:
+        """Callers cannot raise the pool past the established four-worker cap."""
+        ops = MCPServerOperations.__new__(MCPServerOperations)
+        ops.registry_client = MagicMock()
+        ops.registry_client.find_server_by_reference = lambda ref: {"id": ref}
+
+        with patch("concurrent.futures.ThreadPoolExecutor") as mock_pool:
+            mock_pool.return_value.__enter__.return_value.map = lambda fn, refs: (
+                fn(ref) for ref in refs
+            )
+            result = ops.batch_fetch_server_info(
+                ["a", "b", "c", "d", "e"],
+                max_workers=1000,
+            )
+
+        assert mock_pool.call_args.kwargs["max_workers"] == 4
+        assert list(result.keys()) == ["a", "b", "c", "d", "e"]

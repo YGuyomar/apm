@@ -302,7 +302,7 @@ class MCPServerOperations:
 
         Args:
             server_references: List of MCP server references
-            max_workers: Max parallel lookups (default 4).
+            max_workers: Requested parallel lookups; clamped to 4.
 
         Returns:
             Dictionary mapping server reference to server info (or None if not found)
@@ -319,7 +319,7 @@ class MCPServerOperations:
         if not server_references:
             return server_info_cache
 
-        workers = min(max_workers, len(server_references))
+        workers = min(max(1, max_workers), 4, len(server_references))
         with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="mcp-fetch") as executor:
             for server_ref, server_info in executor.map(_fetch_one, server_references):
                 server_info_cache[server_ref] = server_info
