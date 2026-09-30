@@ -727,20 +727,10 @@ class InstructionIntegrator(BaseIntegrator):
     def _convert_to_cursor_rules(content: str) -> str:
         """Convert APM instruction content to Cursor Rules ``.mdc`` format.
 
-        Parses existing YAML frontmatter, maps ``applyTo`` → ``globs``,
-        extracts or generates a ``description``, and rewrites the
-        frontmatter in Cursor's expected format. Cursor's own ``.mdc``
-        docs (cursor.com/docs/context/rules) never show a quoted or
-        list-valued ``globs`` -- multiple globs are one comma-joined,
-        always-bare scalar (:func:`yaml_globs_scalar`), so that is the
-        only shape emitted here (issue #3002). Each glob is re-escaped
-        (:func:`escape_apply_to_segment`) before joining so a literal
-        comma the author escaped in ``applyTo`` (``\\,``) doesn't become
-        indistinguishable from the separator between two globs -- Cursor's
-        own comma-splitting isn't escape-aware, so this can't make such a
-        pattern actually work in Cursor, but it keeps APM's own output
-        consistent with ``parse_apply_to``'s documented convention rather
-        than silently mis-splitting it.
+        Map ``applyTo`` to one comma-joined ``globs`` scalar and preserve
+        or derive the description. Ordinary globs stay bare; unsafe
+        characters are escaped. Re-escape each segment before joining
+        to preserve APM's literal-comma and backslash boundaries.
         """
         metadata, body = InstructionIntegrator._parse_frontmatter(content)
         apply_to = normalize_apply_to(metadata.get("applyTo"), default="")

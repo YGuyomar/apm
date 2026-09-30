@@ -1,5 +1,8 @@
 """Tests for the applyTo pattern parser."""
 
+from collections.abc import Callable
+
+import pytest
 import yaml
 
 from apm_cli.utils.patterns import (
@@ -12,6 +15,24 @@ from apm_cli.utils.patterns import (
     yaml_globs_scalar,
     yaml_plain_scalar,
 )
+
+
+@pytest.mark.windows_compat
+@pytest.mark.parametrize("render", [yaml_plain_scalar, yaml_globs_scalar])
+@pytest.mark.parametrize(
+    "codepoint",
+    [*range(32), *range(0x7F, 0xA0), 0x2028, 0x2029, 0xD800, 0xDFFF, 0xFFFE, 0xFFFF],
+)
+def test_cursor_scalar_escapes_unsafe_characters(
+    render: Callable[[str], str], codepoint: int
+) -> None:
+    value = f"before{chr(codepoint)}after"
+    rendered = render(value)
+    assert rendered.startswith('"')
+    assert len(rendered.splitlines()) == 1
+    assert chr(codepoint) not in rendered
+    assert yaml.safe_load(f"key: {rendered}") == {"key": value}
+    rendered.encode("utf-8")
 
 
 class TestParseApplyTo:
@@ -217,9 +238,7 @@ class TestYamlDoubleQuote:
 class TestYamlPlainScalar:
     """Unit tests for yaml_plain_scalar() (issue #3002).
 
-    Cursor's own ``.mdc`` frontmatter docs never show quoted ``globs``/
-    ``description`` values -- every example is a bare plain scalar. This
-    helper prefers that form and only quotes when YAML correctness
+    This helper prefers a bare scalar and only quotes when YAML correctness
     requires it, without ever forcing ``\\uXXXX`` escaping of printable
     non-ASCII text.
     """
@@ -383,13 +402,8 @@ class TestYamlPlainScalar:
 class TestYamlGlobsScalar:
     """Unit tests for yaml_globs_scalar() (issue #3002 follow-up).
 
-    Cursor's ``globs`` docs never show a quoted value, not even for
-    patterns starting with ``**`` -- unlike free-form ``description``
-    text, glob syntax has no legitimate use for the YAML ambiguities
-    (reserved words, ``: ``, a leading alias-like ``*``) that
-    :func:`yaml_plain_scalar` guards against, so ``globs`` always stays
-    bare except for the one thing that would actually corrupt the
-    frontmatter block: an embedded newline.
+    Ordinary globs remain bare, including patterns starting with ``**``.
+    Unsafe characters still require escaping to preserve a single-line scalar.
     """
 
     def test_plain_glob_stays_bare(self):

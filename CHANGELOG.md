@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Cursor target no longer emits a quoted, multi-item YAML list for `globs` when an instruction's `applyTo` has comma-separated globs; it now emits the single comma-joined, always-bare scalar Cursor's own `.mdc` docs document -- including patterns starting with `**`, which every Cursor doc example leaves unquoted too. `description` no longer forces `\uXXXX`-escaped non-ASCII text either. (#3002)
+- Cursor rules now use comma-joined `globs` and readable descriptions, while retaining safe escaping for control characters. (by @YGuyomar, #3011)
 
 ## [0.32.0] - 2026-09-25
 

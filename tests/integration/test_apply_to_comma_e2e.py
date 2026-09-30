@@ -5,8 +5,8 @@ glob list and exercises each of the four target converters
 (Copilot / Cursor / Windsurf / Claude), then asserts every segment ends
 up in the rendered artifact in the target's native form.
 
-Copilot must preserve the value verbatim (consuming tool splits it);
-the other three must emit a YAML list under their respective key.
+Copilot preserves the value verbatim; Cursor emits one comma-joined scalar.
+Claude and Windsurf emit YAML lists under their respective keys.
 """
 
 import tempfile
@@ -50,8 +50,7 @@ def test_copilot_preserves_verbatim(source_instruction, tmp_path):
 def test_cursor_emits_comma_joined_scalar(source_instruction, tmp_path):
     """Cursor must join multiple globs into one comma-separated scalar (issue #3002).
 
-    Unlike Claude/Windsurf, Cursor's native `.mdc` format has no list
-    syntax for `globs` -- a YAML list here would be a Cursor-target bug.
+    Unlike Claude/Windsurf, APM emits Cursor globs as one scalar.
     """
     dst = tmp_path / "cursor.mdc"
     integrator = InstructionIntegrator()

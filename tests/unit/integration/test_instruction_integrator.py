@@ -618,6 +618,19 @@ class TestInstructionNameCollision:
 class TestConvertToCursorRules:
     """Test the frontmatter conversion helper."""
 
+    @pytest.mark.windows_compat
+    @pytest.mark.parametrize("field", ["description", "applyTo"])
+    @pytest.mark.parametrize("codepoint", [0, 0x0B, 0x1C, 0x80, 0x9F, 0xFFFE, 0xFFFF])
+    def test_escaped_source_controls_preserve_frontmatter(self, field: str, codepoint: int) -> None:
+        content = f'---\n{field}: "before\\u{codepoint:04x}after"\n---\n# Body\n'
+        rendered = InstructionIntegrator._convert_to_cursor_rules(content)
+        parsed = loads_frontmatter(rendered)
+        key = "globs" if field == "applyTo" else field
+        assert parsed.metadata[key] == f"before{chr(codepoint)}after"
+        assert parsed.content == "# Body"
+        assert chr(codepoint) not in rendered
+        rendered.encode("utf-8")
+
     def test_maps_apply_to_to_globs(self):
         content = "---\napplyTo: 'src/**/*.py'\n---\n\n# Python rules"
         result = InstructionIntegrator._convert_to_cursor_rules(content)
@@ -629,8 +642,7 @@ class TestConvertToCursorRules:
         content = "---\napplyTo: '**/*.ts'\ndescription: TypeScript guidelines\n---\n\n# TS Rules"
         result = InstructionIntegrator._convert_to_cursor_rules(content)
         assert "description: TypeScript guidelines" in result
-        # globs is always bare, even for a leading "**" -- Cursor's docs
-        # never show a quoted globs value, no exceptions.
+        # Ordinary leading-star globs use Cursor syntax, not YAML aliases.
         assert "globs: **/*.ts" in result
 
     def test_generates_description_from_heading(self):
